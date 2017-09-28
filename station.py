@@ -1,14 +1,17 @@
 from random import randint
+import random
+import math
+import numpy as np
 
 class Station:
 	
 
-	def __init__(self, name, lambda_val, role, max_backoff):
+	def __init__(self, name, lambda_val, role, max_backoff, total_slots, slot_duration):
 		self.name = name
 		self.lambda_val = lambda_val
 		self.role = role
 		self.max_backoff = max_backoff
-		self.time_slots = self.create_time_slots()  # TODO: replace with poisson distribution
+		self.time_slots = self.create_time_slots(total_slots, slot_duration, lambda_val, role)  # TODO: replace with poisson distribution
 		self.backoff = -1 							# if not in backoff then will be -1
 		self.difs_counter = -1 						# if not in DIFS will be -1
 		self.sifs_counter = -1 						# if not in SIFS will be -1
@@ -22,16 +25,29 @@ class Station:
 	def set_collision_domain(self, collision_domain):
 		self.collision_domain = collision_domain
 
+	def set_station_communicating(self, station_sending_to):
+		self.station_sending_to = station_sending_to
 
-	def create_time_slots(self):
+	def create_time_slots(self, total_slots, slot_duration, lambda_val, role):
 		temp_sum = 0
 		ret_list = []
+		if (role is not 'Sender'):
+			return []
 
-		for i in range(0, 1):  				# Just creating to see if it is working 
-			temp_sum += randint(1, 10)
-			ret_list.append(temp_sum)
+		max_time = 0
+		timeList = []
+		while (max_time < total_slots):
+			x1 = -1.0 / lambda_val * math.log(1 - random.uniform(0, 1)) 	# Using the formula given in the appendix
+			x1 = x1 / (slot_duration * 10**-6) 									# Converting from time to slot
+			if (len(timeList) == 0):
+				max_time = round(x1)
+			else:
+				max_time = round(x1) + timeList[-1]
+			timeList.append(max_time)
+		if (len(timeList) > 0 and timeList[-1] > total_slots):
+			del timeList[-1] 													# Last element is too big
 
-		return ret_list 
+		return timeList 
 
 
 	def set_rand_backoff(self, backoff):
