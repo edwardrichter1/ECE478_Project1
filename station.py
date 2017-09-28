@@ -8,6 +8,7 @@ class Station:
 
 	def __init__(self, name, lambda_val, role, max_backoff, total_slots, slot_duration):
 		self.name = name
+		self.status = 'free'
 		self.lambda_val = lambda_val
 		self.role = role
 		self.max_backoff = max_backoff

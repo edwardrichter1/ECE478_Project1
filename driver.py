@@ -26,9 +26,12 @@ scenario_choice = 'a'															# choosing which scenario to create
 # which will force the node to check the channel for that many slots to see if it is busy.
 def prepare_transmitting_stations(t_stations, slot):
 	for t_station in t_stations:
-		if slot in t_station.time_slots:
+		# TODO if the slot value has gone over a value while transmiting something from another sender
+		# then it will skip that slot since they will not be the same.
+		if (slot >= t_station.time_slots[0] and t_station.status is 'free'):
 			print 'Station {} is ready to transmit on slot {}'.format(t_station.name, slot)
 			t_station.difs_counter = DIFS_duration
+			t_station.status = 'busy'
 
 
 # This function will check the difs counter of all sending stations. It checks them to see if their
@@ -91,6 +94,7 @@ def check_awk_counters(spectrum):
 		spectrum.ack_counter = -1
 		if (len(spectrum.sending_station.time_slots) > 0):
 			spectrum.sending_station.time_slots = spectrum.sending_station.time_slots[1:]
+		spectrum.sending_station.status = 'free'
 		spectrum.sending_station = -1
 		spectrum.receiving_station = -1	
 		print '\nSuccesful transmission\n'	
