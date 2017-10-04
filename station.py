@@ -51,8 +51,8 @@ class Station:
 		return timeList 
 
 
-	def set_rand_backoff(self, backoff):
-		self.backoff = randint(0, backoff)
+	def set_rand_backoff(self):
+		self.backoff = randint(0, self.max_backoff)
 
 
 def main():
