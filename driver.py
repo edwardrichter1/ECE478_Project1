@@ -4,22 +4,22 @@ from packet import Packet
 from spectrum import Spectrum
 import matplotlib.pyplot as plt 
 
-data_frame_size = 1500 															# bytes
-slot_duration = 20																# micro seconds
-SIFS_duration = 1 																# slot
-backoff_range = 4																# slots
-possible_lambdas = [50, 100, 200, 300] 											# frames/sec
-ACK_RTS_CTS_size = 30															# bytes
-DIFS_duration = 2																# slots
-transmission_rate = 6															# Mbps
-max_backoff_range = 1024														# slots
-simulation_time = 10 															# sec
-total_slots = (simulation_time * (10**6)) / slot_duration						# slots
-data_slots = data_frame_size * 8 / (transmission_rate) / slot_duration			# slots
-ACK_RTS_CTS_slots = ACK_RTS_CTS_size * 8 / (transmission_rate) / slot_duration	# slots
-scenario_choice = 'a'															# choosing which scenario to create
-constant_a_lambda = 300															# value to keep lambda_a in graphs
-constant_c_lambda = 300															# value to keep lambda_c in graphs
+data_frame_size = 1500 																						# bytes
+slot_duration = 20																							# micro seconds
+SIFS_duration = 1 																							# slot
+backoff_range = 4																							# slots
+lambda_vals = [[50, 50], [100, 100], [200, 200], [300, 300], [50, 100], [100, 200], [200, 400], [300, 600]] # frames/sec
+ACK_RTS_CTS_size = 30																						# bytes
+DIFS_duration = 2																							# slots
+transmission_rate = 6																						# Mbps
+max_backoff_range = 1024																					# slots
+simulation_time = 10 																						# sec
+total_slots = (simulation_time * (10**6)) / slot_duration													# slots
+data_slots = data_frame_size * 8 / (transmission_rate) / slot_duration										# slots
+ACK_RTS_CTS_slots = ACK_RTS_CTS_size * 8 / (transmission_rate) / slot_duration								# slots
+scenario_choice = 'a'																						# choosing which scenario to create
+constant_a_lambda = 300																						# value to keep lambda_a in graphs
+constant_c_lambda = 300																						# value to keep lambda_c in graphs
 
 
 # This function will prepare all of the stations that just recieved a packet from the
@@ -104,7 +104,7 @@ def check_ack_counters(spectrum, slot_num):
 			spectrum.status = 'free'
 			spectrum.sending_station.status = 'free'
 			# print 'Succesful transmission {}\n'.format(spectrum.sending_station.name)
-			print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
+			# print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
 			spectrum.sending_station.num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
@@ -152,72 +152,68 @@ def end_of_slot(s):
 def main():
 
 	sim_data = []
-	for lambda_a in possible_lambdas:
-		for lambda_c in possible_lambdas:
+	for lambda_a, lambda_c in lambda_vals:
+		
+		# Initializing scenario A
+		if scenario_choice == 'a':
+			station_a = Station('A', lambda_a, 'Sender', backoff_range, total_slots, slot_duration)
+			station_b = Station('B', 0, 'Receiver', backoff_range, total_slots, slot_duration)
+			station_c = Station('C', lambda_c, 'Sender', backoff_range, total_slots, slot_duration)
+			station_d = Station('D', 0, 'Receiver', backoff_range, total_slots, slot_duration) 
+			station_a.set_station_communicating(station_b)
+			station_b.set_station_communicating(station_a)
+			station_c.set_station_communicating(station_d)
+			station_d.set_station_communicating(station_c)
+			station_a.set_collision_domain([station_b, station_c, station_d])
+			station_b.set_collision_domain([station_a, station_c, station_d])
+			station_c.set_collision_domain([station_a, station_b, station_d])
+			station_d.set_collision_domain([station_a, station_b, station_c])
+			spectrum = Spectrum()
+			scenario = Scenario([station_a, station_b, station_c, station_d], spectrum)
+		
+		for slot_num in range(0, total_slots):
+			scenario.spectrum.prev_status = scenario.spectrum.status
+			prepare_transmitting_stations(scenario.sending_stations, slot_num)		# Checking to see if a node is trying to send a packet at a given slot.
+			check_difs_counters(scenario.sending_stations)							# Checking to see if the difs counter for any node is 0 to start the backoff.
+			check_backoff_counters(scenario.sending_stations, scenario.spectrum)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
+			check_data_counters(scenario.spectrum)									# Checking to see if the data counter is done. 
+			check_sifs_counters(scenario.sending_stations, scenario.spectrum)		# Checking to see if the sifs counter for any node is 0 to free the medium.
+			check_ack_counters(scenario.spectrum, slot_num)							# Checking to see if the awk counter is done.
 			
-			# Initializing scenario A
-			if scenario_choice == 'a':
-				station_a = Station('A', lambda_a, 'Sender', backoff_range, total_slots, slot_duration)
-				station_b = Station('B', 0, 'Receiver', backoff_range, total_slots, slot_duration)
-				station_c = Station('C', lambda_c, 'Sender', backoff_range, total_slots, slot_duration)
-				station_d = Station('D', 0, 'Receiver', backoff_range, total_slots, slot_duration) 
-				station_a.set_station_communicating(station_b)
-				station_b.set_station_communicating(station_a)
-				station_c.set_station_communicating(station_d)
-				station_d.set_station_communicating(station_c)
-				station_a.set_collision_domain([station_b, station_c, station_d])
-				station_b.set_collision_domain([station_a, station_c, station_d])
-				station_c.set_collision_domain([station_a, station_b, station_d])
-				station_d.set_collision_domain([station_a, station_b, station_c])
-				spectrum = Spectrum()
-				scenario = Scenario([station_a, station_b, station_c, station_d], spectrum)
-			
-			for slot_num in range(0, total_slots):
-				scenario.spectrum.prev_status = scenario.spectrum.status
-				prepare_transmitting_stations(scenario.sending_stations, slot_num)		# Checking to see if a node is trying to send a packet at a given slot.
-				check_difs_counters(scenario.sending_stations)							# Checking to see if the difs counter for any node is 0 to start the backoff.
-				check_backoff_counters(scenario.sending_stations, scenario.spectrum)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
-				check_data_counters(scenario.spectrum)									# Checking to see if the data counter is done. 
-				check_sifs_counters(scenario.sending_stations, scenario.spectrum)		# Checking to see if the sifs counter for any node is 0 to free the medium.
-				collision = check_ack_counters(scenario.spectrum, slot_num)				# Checking to see if the awk counter is done.
+			end_of_slot(scenario)													# Decreasing all counters in the scenario.
+
+			# DEBUG information
+			#try:
+			#	print 'On slot {}'.format(slot_num)
+			#	print 'A next time slot: {}'.format(station_a.time_slots[0])
+			#	print 'A difs counter: {}'.format(station_a.difs_counter)
+			#	print 'A backoff counter: {}'.format(station_a.backoff)
+			#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
 				
-				if collision:
-					total_collisions += 1
-				
-				end_of_slot(scenario)													# Decreasing all counters in the scenario.
+			#	print 'C next time slot: {}'.format(station_c.time_slots[0])
+			#	print 'C difs counter: {}'.format(station_c.difs_counter)
+			#	print 'C backoff counter: {}'.format(station_c.backoff)
+			#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
 
-				# DEBUG information
-				#try:
-				#	print 'On slot {}'.format(slot_num)
-				#	print 'A next time slot: {}'.format(station_a.time_slots[0])
-				#	print 'A difs counter: {}'.format(station_a.difs_counter)
-				#	print 'A backoff counter: {}'.format(station_a.backoff)
-				#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
-					
-				#	print 'C next time slot: {}'.format(station_c.time_slots[0])
-				#	print 'C difs counter: {}'.format(station_c.difs_counter)
-				#	print 'C backoff counter: {}'.format(station_c.backoff)
-				#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
-
-				#	print 'Spectrum status: {}'.format(spectrum.status)
-				#	print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
-				#	print 'Spectrum Ack Counter: {}\n'.format(spectrum.ack_counter)
-				#except IndexError, e:
-				#	print 'No more data to send. Breaking'
-				#	break
-
-			single_sim_data = {	# using hash table to record all of the information of a single simulation
-				'lambda_a': lambda_a,
-				'lambda_c': lambda_c,
-				'a_collisions': station_a.num_collisions,
-				'c_collisions': station_c.num_collisions,
-				'a_throughput': station_a.num_data_transmit / simulation_time,
-				'c_throughput': station_c.num_data_transmit / simulation_time,
-				'a_slots_transmitting': station_a.slots_transmitting,
-				'c_slots_transmitting': station_c.slots_transmitting,
-				'FI': station_a.slots_transmitting / station_c.slots_transmitting
-			}
-			sim_data.append(single_sim_data)
+			#	print 'Spectrum status: {}'.format(spectrum.status)
+			#	print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
+			#	print 'Spectrum Ack Counter: {}\n'.format(spectrum.ack_counter)
+			#except IndexError, e:
+			#	print 'No more data to send. Breaking'
+			#	break
+		print 'Name {}\t{}\nName {}\t{}'.format(station_a.name, station_a.slots_transmitting, station_c.name, station_c.slots_transmitting)
+		single_sim_data = {	# using hash table to record all of the information of a single simulation
+			'lambda_a': lambda_a,
+			'lambda_c': lambda_c,
+			'a_collisions': station_a.num_collisions,
+			'c_collisions': station_c.num_collisions,
+			'a_throughput': station_a.num_data_transmit / simulation_time,
+			'c_throughput': station_c.num_data_transmit / simulation_time,
+			'a_slots_transmitting': station_a.slots_transmitting,
+			'c_slots_transmitting': station_c.slots_transmitting,
+			'FI': station_a.slots_transmitting / station_c.slots_transmitting
+		}
+		sim_data.append(single_sim_data)
 
 	for sim in sim_data:
 		print sim
