@@ -44,7 +44,7 @@ def check_difs_counters(stations):
 # This function is similar to "check_difs_counters", but instead it checks to see if the backoff counter
 # is complete. If so, the station will send the packet. This should create a packet object which will
 # put the channel in a busy state.
-def check_backoff_counters(stations, spectrum):
+def check_backoff_counters(stations, spectrum, vcs):
 	sendingList = []
 	for t_station in stations:
 		if t_station.backoff == 0:
@@ -52,11 +52,19 @@ def check_backoff_counters(stations, spectrum):
 			sendingList.append(t_station)
 	if (len(sendingList) is 1):
 		spectrum.status = 'busy'
-		spectrum.data_counter = data_slots
+		if vcs:
+			spectrum.rts_counter = ACK_RTS_CTS_slots
+		else:		
+			spectrum.data_counter = data_slots
+		
 		spectrum.sending_station = sendingList[0]
 	elif (len(sendingList) > 1):
 		spectrum.status = 'collision'
-		spectrum.data_counter = data_slots
+		if vcs:
+			spectrum.rts_counter = ACK_RTS_CTS_slots
+		else:
+			spectrum.data_counter = data_slots
+		
 		spectrum.sending_station = sendingList
 
 
@@ -69,20 +77,30 @@ def check_data_counters(spectrum):
 			spectrum.sending_station.sifs_counter = SIFS_duration
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1
+			spectrum.action_before_sifs = 'data'
 		elif (spectrum.status is 'collision'):
 			spectrum.data_counter = -1
+			spectrum.action_before_sifs = 'data'
 			for t_station in spectrum.sending_station:
 				t_station.sifs_counter = SIFS_duration
 
 
 # This function will check the sifs counter of all sending stations. It checks them to see if their
-# sifs counter is equal to zero. If so, that means they have watched the channel for sdifs duration
+# sifs counter is equal to zero. If so, that means they have watched the channel for sifs duration
 # and the channel was always free. It will then free up the medium to allow for another packet to be sent. 
 def check_sifs_counters(stations, spectrum):
 	for t_station in stations:
 		if (t_station.sifs_counter == 0):
 			t_station.sifs_counter = -1
-			spectrum.ack_counter = ACK_RTS_CTS_slots
+			print 'we in here'
+			print spectrum.action_before_sifs
+			if spectrum.action_before_sifs == 'rts':
+				spectrum.cts_counter = ACK_RTS_CTS_slots
+			elif spectrum.action_before_sifs == 'cts':
+				spectrum.data_counter = data_slots
+			elif spectrum.action_before_sifs == 'data':
+				spectrum.ack_counter = ACK_RTS_CTS_slots
+
 			if (spectrum.status is 'busy'):
 				spectrum.set_sending_receiving_station(t_station, t_station.station_sending_to)
 
@@ -97,8 +115,7 @@ def check_ack_counters(spectrum, slot_num):
 				spectrum.sending_station.time_slots = spectrum.sending_station.time_slots[1:]
 			spectrum.status = 'free'
 			spectrum.sending_station.status = 'free'
-			# print 'Succesful transmission {}\n'.format(spectrum.sending_station.name)
-			# print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
+			print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
 			spectrum.sending_station.num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
@@ -109,10 +126,40 @@ def check_ack_counters(spectrum, slot_num):
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-			print 'Collision on slot {}'.format(slot_num)
+			print 'Collision in ack on slot {}'.format(slot_num)
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
 			spectrum.status = 'free'
+
+
+def check_CTS_counter(spectrum):
+	if spectrum.cts_counter == 0:
+		if (spectrum.status is 'busy'):
+			spectrum.cts_counter = -1
+			spectrum.sending_station.sifs_counter = SIFS_duration
+			spectrum.sending_station = -1
+			spectrum.receiving_station = -1
+			spectrum.action_before_sifs = 'cts'
+		elif (spectrum.status is 'collision'):
+			spectrum.rts_counter = -1
+			spectrum.action_before_sifs = 'cts'
+			for t_station in spectrum.sending_station:
+				t_station.sifs_counter = SIFS_duration
+
+
+def check_RTS_counter(spectrum):
+	if spectrum.rts_counter == 0:
+		if (spectrum.status is 'busy'):
+			spectrum.rts_counter = -1
+			spectrum.sending_station.sifs_counter = SIFS_duration
+			spectrum.sending_station = -1
+			spectrum.receiving_station = -1
+			spectrum.action_before_sifs = 'rts'
+		elif (spectrum.status is 'collision'):
+			spectrum.rts_counter = -1
+			spectrum.action_before_sifs = 'rts'
+			for t_station in spectrum.sending_station:
+				t_station.sifs_counter = SIFS_duration
 
 
 # This function will decrement all of the counters occuring in the simulation. This will include
@@ -139,16 +186,21 @@ def end_of_slot(s):
 		# print 'Decreasing Data Counter: {}'.format(s.spectrum.data_counter)
 	if s.spectrum.ack_counter > 0:
 		s.spectrum.ack_counter -= 1
-		# print 'Decreasing ACK Counter: {}'.format(s.spectrum.ack_counter)		
+		# print 'Decreasing ACK Counter: {}'.format(s.spectrum.ack_counter)
+	if s.spectrum.rts_counter > 0:
+		s.spectrum.rts_counter -= 1
+
+	if s.spectrum.cts_counter > 0:
+		s.spectrum.cts_counter -= 1
 
 
 def main():
 
 	sim_data = []
 
-	for scenario_choice in ['a']: # TODO: incorporate scenario B and place that in the loop
-		for vcs in [True, False]:
-			for lambda_a, lambda_c in lambda_vals:
+	for scenario_choice in ['a']: 					# TODO: incorporate scenario B and place that in the loop
+		for vcs in [True]:							# TODO: incorporate both VCS on and off and place in loop
+			for lambda_a, lambda_c in [[10, 10]]:	# TODO: incorporate all lambda values
 				
 				# Initializing scenario A
 				if scenario_choice == 'a':
@@ -167,54 +219,60 @@ def main():
 					spectrum = Spectrum()
 					scenario = Scenario([station_a, station_b, station_c, station_d], spectrum, vcs)
 				
-				for slot_num in range(0, total_slots):
-					prepare_transmitting_stations(scenario.sending_stations, slot_num)		# Checking to see if a node is trying to send a packet at a given slot.
-					check_difs_counters(scenario.sending_stations)							# Checking to see if the difs counter for any node is 0 to start the backoff.
-					check_backoff_counters(scenario.sending_stations, scenario.spectrum)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
-					check_data_counters(scenario.spectrum)									# Checking to see if the data counter is done. 
-					check_sifs_counters(scenario.sending_stations, scenario.spectrum)		# Checking to see if the sifs counter for any node is 0 to free the medium.
-					check_ack_counters(scenario.spectrum, slot_num)							# Checking to see if the awk counter is done.
+				for slot_num in range(0, 300):
+					prepare_transmitting_stations(scenario.sending_stations, slot_num)					# Checking to see if a node is trying to send a packet at a given slot.
+					check_difs_counters(scenario.sending_stations)										# Checking to see if the difs counter for any node is 0 to start the backoff.
+					check_backoff_counters(scenario.sending_stations, scenario.spectrum, scenario.vcs)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
+					if scenario.vcs:
+						check_RTS_counter(scenario.spectrum)											# if we are using VCS, check the RTS counter
+						check_CTS_counter(scenario.spectrum)											# if we are using VCS, check the CTS counter
+					check_data_counters(scenario.spectrum)												# Checking to see if the data counter is done. 
+					check_sifs_counters(scenario.sending_stations, scenario.spectrum)					# Checking to see if the sifs counter for any node is 0 to free the medium.
+					check_ack_counters(scenario.spectrum, slot_num)										# Checking to see if the awk counter is done.
 					
-					end_of_slot(scenario)													# Decreasing all counters in the scenario.
+					end_of_slot(scenario)																# Decreasing all counters in the scenario.
 
 					# DEBUG information
-					#try:
-					#	print 'On slot {}'.format(slot_num)
-					#	print 'A next time slot: {}'.format(station_a.time_slots[0])
-					#	print 'A difs counter: {}'.format(station_a.difs_counter)
-					#	print 'A backoff counter: {}'.format(station_a.backoff)
-					#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
-						
-					#	print 'C next time slot: {}'.format(station_c.time_slots[0])
-					#	print 'C difs counter: {}'.format(station_c.difs_counter)
-					#	print 'C backoff counter: {}'.format(station_c.backoff)
-					#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
+					try:
+						print 'On slot {}'.format(slot_num)
+						print 'A next time slot: {}'.format(station_a.time_slots[0])
+						print 'A difs counter: {}'.format(station_a.difs_counter)
+						print 'A backoff counter: {}'.format(station_a.backoff)
+						print 'A sifs counter: {}'.format(station_a.sifs_counter)
 
-					#	print 'Spectrum status: {}'.format(spectrum.status)
-					#	print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
-					#	print 'Spectrum Ack Counter: {}\n'.format(spectrum.ack_counter)
-					#except IndexError, e:
-					#	print 'No more data to send. Breaking'
-					#	break
+						print 'C next time slot: {}'.format(station_c.time_slots[0])
+						print 'C difs counter: {}'.format(station_c.difs_counter)
+						print 'C backoff counter: {}'.format(station_c.backoff)
+						print 'C sifs counter: {}'.format(station_c.sifs_counter)
 
-				single_sim_data = {	# using hash table to record all of the information of a single simulation
-					'lambda_a': lambda_a,
-					'lambda_c': lambda_c,
-					'a_collisions': station_a.num_collisions,
-					'c_collisions': station_c.num_collisions,
-					'a_throughput': station_a.num_data_transmit / simulation_time,
-					'c_throughput': station_c.num_data_transmit / simulation_time,
-					'a_slots_transmitting': station_a.slots_transmitting,
-					'c_slots_transmitting': station_c.slots_transmitting,
-					'FI': station_a.slots_transmitting / station_c.slots_transmitting,
-					'vcs': vcs,
-					'scenario': scenario_choice
-				}
-				sim_data.append(single_sim_data)
+						print 'Spectrum status: {}'.format(spectrum.status)
+						print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
+						print 'Spectrum Ack Counter: {}'.format(spectrum.ack_counter)
+						print 'Spectrum RTS counter: {}'.format(spectrum.rts_counter)
+						print 'Spectrum CTS counter: {}\n'.format(spectrum.cts_counter)
+					except IndexError, e:
+						print 'No more data to send. Breaking'
+						break
 
-	for sim in sim_data:
-		print sim
+				#single_sim_data = {	# using hash table to record all of the information of a single simulation
+				#	'lambda_a': lambda_a,
+				#	'lambda_c': lambda_c,
+				#	'a_collisions': station_a.num_collisions,
+				#	'c_collisions': station_c.num_collisions,
+				#	'a_throughput': station_a.num_data_transmit / simulation_time,
+				#	'c_throughput': station_c.num_data_transmit / simulation_time,
+				#	'a_slots_transmitting': station_a.slots_transmitting,
+				#	'c_slots_transmitting': station_c.slots_transmitting,
+				#	'FI': station_a.slots_transmitting / station_c.slots_transmitting,
+				#	'vcs': vcs,
+				#	'scenario': scenario_choice
+				#}
+				#sim_data.append(single_sim_data)
 
+	#for sim in sim_data:
+	#	print sim
+
+	'''
 	plt.figure(0)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
 	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
@@ -313,6 +371,7 @@ def main():
 	plt.title('3.b Fairness Index with A sending more than C')
 	#plt.savefig('fig1-d.png')
 	plt.show()
+	'''
 
 if __name__ == '__main__':
 	main()
