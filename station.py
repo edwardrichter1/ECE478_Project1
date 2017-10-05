@@ -13,9 +13,11 @@ class Station:
 		self.role = role
 		self.max_backoff = max_backoff
 		self.time_slots = self.create_time_slots(total_slots, slot_duration, lambda_val, role)  # TODO: replace with poisson distribution
-		self.backoff = -1 							# if not in backoff then will be -1
-		self.difs_counter = -1 						# if not in DIFS will be -1
-		self.sifs_counter = -1 						# if not in SIFS will be -1
+		self.backoff = -1 							# If not in backoff then will be -1
+		self.difs_counter = -1 						# If not in DIFS will be -1
+		self.sifs_counter = -1 						# If not in SIFS will be -1
+		self.num_data_transmit = 0					# amount of data in Kb successfully transmitted
+		self.num_collisions = 0						# number of collisions
 
 
 	def __str__(self):
@@ -48,7 +50,6 @@ class Station:
 		if (len(timeList) > 0 and timeList[-1] > total_slots):
 			del timeList[-1] 													# Last element is too big
 
-		timeList = [10]
 		return timeList 
 
 
