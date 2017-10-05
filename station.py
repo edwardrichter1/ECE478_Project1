@@ -48,6 +48,7 @@ class Station:
 		if (len(timeList) > 0 and timeList[-1] > total_slots):
 			del timeList[-1] 													# Last element is too big
 
+		timeList = [10]
 		return timeList 
 
 
