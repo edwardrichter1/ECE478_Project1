@@ -5,7 +5,6 @@ class Spectrum:
 		self.data = []
 		self.data_counter = -1 	# if -1 that means there is no data
 		self.ack_counter = -1	# if -1 that means there is no data
-		self.collisions = 0
 
 	def __str__(self):
 		ret_str = '\tStatus: {}\n\tData: {}\n'.format(self.status, self.data)

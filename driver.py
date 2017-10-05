@@ -2,6 +2,7 @@ from scenario import Scenario
 from station import Station
 from packet import Packet
 from spectrum import Spectrum
+import matplotlib.pyplot as plt 
 
 data_frame_size = 1500 															# bytes
 slot_duration = 20																# micro seconds
@@ -17,6 +18,8 @@ total_slots = (simulation_time * (10**6)) / slot_duration						# slots
 data_slots = data_frame_size * 8 / (transmission_rate) / slot_duration			# slots
 ACK_RTS_CTS_slots = ACK_RTS_CTS_size * 8 / (transmission_rate) / slot_duration	# slots
 scenario_choice = 'a'															# choosing which scenario to create
+constant_a_lambda = 300															# value to keep lambda_a in graphs
+constant_c_lambda = 300															# value to keep lambda_c in graphs
 
 
 # This function will prepare all of the stations that just recieved a packet from the
@@ -101,7 +104,7 @@ def check_ack_counters(spectrum, slot_num):
 			spectrum.status = 'free'
 			spectrum.sending_station.status = 'free'
 			# print 'Succesful transmission {}\n'.format(spectrum.sending_station.name)
-			# print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
+			print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
 			spectrum.sending_station.num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
@@ -112,7 +115,7 @@ def check_ack_counters(spectrum, slot_num):
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-			# print 'Collision on slot {}'.format(slot_num)
+			print 'Collision on slot {}'.format(slot_num)
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
 			spectrum.status = 'free'
@@ -133,6 +136,8 @@ def end_of_slot(s):
 			
 		# TODO: Push back elements in time_slots if it is already processing one packet
 	for t_station in s.sending_stations:
+		if t_station.status == 'busy':
+			t_station.slots_transmitting += 1
 		if t_station.sifs_counter > 0:
 			t_station.sifs_counter -= 1
 			# print '{} SIFS now: {}'.format(t_station.name, t_station.sifs_counter)
@@ -146,6 +151,7 @@ def end_of_slot(s):
 
 def main():
 
+	sim_data = []
 	for lambda_a in possible_lambdas:
 		for lambda_c in possible_lambdas:
 			
@@ -200,10 +206,57 @@ def main():
 				#	print 'No more data to send. Breaking'
 				#	break
 
-			print 'NODE A with lambda {} SPECIAL NICKYYYYYYYYYYYYYY XD:'.format(lambda_a)
-			print '\tCollisions: {}, Throughput: {}'.format(station_a.num_collisions, station_a.num_data_transmit / simulation_time)
-			print 'NODE C with lambda {} SPECIAL NICKYYYYYYYYYYYYYY XD'.format(lambda_c)
-			print '\tCollisions: {}, Throughput: {}'.format(station_c.num_collisions, station_c.num_data_transmit / simulation_time)
+			single_sim_data = {	# using hash table to record all of the information of a single simulation
+				'lambda_a': lambda_a,
+				'lambda_c': lambda_c,
+				'a_collisions': station_a.num_collisions,
+				'c_collisions': station_c.num_collisions,
+				'a_throughput': station_a.num_data_transmit / simulation_time,
+				'c_throughput': station_c.num_data_transmit / simulation_time,
+				'a_slots_transmitting': station_a.slots_transmitting,
+				'c_slots_transmitting': station_c.slots_transmitting,
+				'FI': station_a.slots_transmitting / station_c.slots_transmitting
+			}
+			sim_data.append(single_sim_data)
+
+	for sim in sim_data:
+		print sim
+
+	plt.figure(0)
+	plt.plot([ sim['lambda_a'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] ], [ sim['a_throughput'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a']], linewidth=2.0, markersize=10)
+	plt.ylabel(r'$T$ (Kbps)')
+	plt.xlabel(r'$\lambda$ (frames/sec)')
+	plt.title('1.a Node A: Throughput vs rate')
+	#plt.savefig('fig1-a.png')
+
+	plt.figure(1)
+	plt.plot([ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ], [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c']], linewidth=2.0, markersize=10)
+	plt.ylabel(r'$T$ (Kbps)')
+	plt.xlabel(r'$\lambda$ (frames/sec)')
+	plt.title('1.b Node C: Throughput vs rate')
+	#plt.savefig('fig1-b.png')
+
+	plt.figure(2)
+	plt.plot([ sim['lambda_a'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] ], [ sim['a_collisions'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a']], linewidth=2.0, markersize=10)
+	plt.ylabel(r'$N$ (Number of collisions)')
+	plt.xlabel(r'$\lambda$ (frames/sec)')
+	plt.title('2.a Node A: Number of Collisions vs Rate')
+	#plt.savefig('fig2-a.png')
+
+	plt.figure(3)
+	plt.plot([ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ], [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c']], linewidth=2.0, markersize=10)
+	plt.ylabel(r'$N$ (Number of collisions)')
+	plt.xlabel(r'$\lambda$ (frames/sec)')
+	plt.title('2.b Node C: Number of Collisions vs Rate')
+	#plt.savefig('fig2-b.png')
+
+	plt.figure(4)
+	plt.plot([ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ], [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c']], linewidth=2.0, markersize=10)
+	plt.ylabel(r'$FI$ (Fairness Index)')
+	plt.xlabel(r'$\lambda$ (frames/sec)')
+	plt.title('3.a Fairness Index')
+	#plt.savefig('fig3-a.png')
+	plt.show()
 
 if __name__ == '__main__':
 	main()

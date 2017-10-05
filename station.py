@@ -18,6 +18,7 @@ class Station:
 		self.sifs_counter = -1 						# If not in SIFS will be -1
 		self.num_data_transmit = 0					# amount of data in Kb successfully transmitted
 		self.num_collisions = 0						# number of collisions
+		self.slots_transmitting = 0					# number of slots the station is using the medium
 
 
 	def __str__(self):
