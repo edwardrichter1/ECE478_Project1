@@ -268,7 +268,7 @@ def main():
 					'c_throughput': station_c.num_data_transmit / simulation_time,
 					'a_slots_transmitting': station_a.slots_transmitting,
 					'c_slots_transmitting': station_c.slots_transmitting,
-					'FI': station_a.slots_transmitting / station_c.slots_transmitting,
+					'FI': station_a.slots_transmitting / float(station_c.slots_transmitting),
 					'vcs': vcs,
 					'scenario': scenario_choice
 				}
@@ -282,104 +282,113 @@ def main():
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
 	vcs_y_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('1.a Node A: Throughput vs rate')
+	plt.title(r'1.a Node A: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec)')
 	#plt.savefig('fig1-a.png')
 
 	plt.figure(1)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
 	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))	
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('1.b Node C: Throughput vs rate')
+	plt.title(r'1.b Node C: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec)')
 	#plt.savefig('fig1-b.png')
 
 	plt.figure(2)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
 	vcs_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('1.c Node A: Throughput vs rate with A sending more than C')
+	plt.title(r'1.c Node A: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
 	#plt.savefig('fig1-c.png')
 
 	plt.figure(3)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
 	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('1.d Node C: Throughput vs rate with A sending more than C')
+	plt.title(r'1.d Node C: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
 	#plt.savefig('fig1-d.png')	
 
 	plt.figure(4)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] and sim['vcs']]
 	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
 	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)	
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')	
+	plt.legend()
 	plt.xlim((45, 305))
-	plt.ylabel(r'$N$ (Number of collisions)')
+	plt.ylabel(r'$N$ (Number of Collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('2.a Node A: Number of Collisions vs Rate')
+	plt.title(r'2.a Node A: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec)')
 	#plt.savefig('fig2-a.png')
 
 	plt.figure(5)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
 	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$N$ (Number of collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('2.b Node C: Number of Collisions vs Rate')
+	plt.title(r'2.b Node C: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec)')
 	#plt.savefig('fig2-b.png')
 
 	plt.figure(6)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
 	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('2.c Node C: Number of Collisions vs Rate with A sending mroe than C')
+	plt.title(r'2.c Node A: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
 	#plt.savefig('fig1-d.png')
 
 	plt.figure(7)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
 	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('2.d Node C: Number of Collisions vs Rate with A sending more than C')
+	plt.title(r'2.d Node C: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
 	#plt.savefig('fig1-d.png')
 
 	plt.figure(8)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	vcs_y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	vcs_y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$FI$ (Fairness Index)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -390,12 +399,13 @@ def main():
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
 	vcs_y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
+	plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
-	plt.title('3.b Fairness Index with A sending more than C')
+	plt.title(r'3.b Fairness Index when $\lambda$A = 2$\lambda$C')
 	#plt.savefig('fig1-d.png')
 	plt.show()
 	
