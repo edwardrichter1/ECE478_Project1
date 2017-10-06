@@ -92,8 +92,6 @@ def check_sifs_counters(stations, spectrum):
 	for t_station in stations:
 		if (t_station.sifs_counter == 0):
 			t_station.sifs_counter = -1
-			print 'we in here'
-			print spectrum.action_before_sifs
 			if spectrum.action_before_sifs == 'rts':
 				spectrum.cts_counter = ACK_RTS_CTS_slots
 			elif spectrum.action_before_sifs == 'cts':
@@ -107,7 +105,7 @@ def check_sifs_counters(stations, spectrum):
 
 # This function checks if the ack counter in the spectrum is set to -1. If it is then it clears the 
 # sending station, resets the counter to -1, and sets the status to free. 
-def check_ack_counters(spectrum, slot_num):
+def check_ack_counters(spectrum):
 	if (spectrum.ack_counter == 0):
 		spectrum.ack_counter = -1
 		if (spectrum.status is 'busy'):
@@ -115,7 +113,7 @@ def check_ack_counters(spectrum, slot_num):
 				spectrum.sending_station.time_slots = spectrum.sending_station.time_slots[1:]
 			spectrum.status = 'free'
 			spectrum.sending_station.status = 'free'
-			print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
+			#print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
 			spectrum.sending_station.num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
@@ -126,7 +124,7 @@ def check_ack_counters(spectrum, slot_num):
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-			print 'Collision in ack on slot {}'.format(slot_num)
+			print 'Collision in ack on slot'
 			spectrum.sending_station = -1
 			spectrum.receiving_station = -1	
 			spectrum.status = 'free'
@@ -141,10 +139,17 @@ def check_CTS_counter(spectrum):
 			spectrum.receiving_station = -1
 			spectrum.action_before_sifs = 'cts'
 		elif (spectrum.status is 'collision'):
-			spectrum.rts_counter = -1
-			spectrum.action_before_sifs = 'cts'
+			spectrum.cts_counter = -1
+			spectrum.action_before_sifs = ''
 			for t_station in spectrum.sending_station:
-				t_station.sifs_counter = SIFS_duration
+				t_station.num_collisions += 1 # every sending station has been apart of a collision, so increment by one
+				t_station.status = 'free'
+				if (t_station.max_backoff < max_backoff_range):
+					t_station.max_backoff *= 2
+			print 'Collision in CTS'
+			spectrum.sending_station = -1
+			spectrum.receiving_station = -1	
+			spectrum.status = 'free'
 
 
 def check_RTS_counter(spectrum):
@@ -199,8 +204,8 @@ def main():
 	sim_data = []
 
 	for scenario_choice in ['a']: 					# TODO: incorporate scenario B and place that in the loop
-		for vcs in [True]:							# TODO: incorporate both VCS on and off and place in loop
-			for lambda_a, lambda_c in [[10, 10]]:	# TODO: incorporate all lambda values
+		for vcs in [True, False]:					# TODO: incorporate both VCS on and off and place in loop
+			for lambda_a, lambda_c in lambda_vals:	# TODO: incorporate all lambda values
 				
 				# Initializing scenario A
 				if scenario_choice == 'a':
@@ -219,7 +224,7 @@ def main():
 					spectrum = Spectrum()
 					scenario = Scenario([station_a, station_b, station_c, station_d], spectrum, vcs)
 				
-				for slot_num in range(0, 300):
+				for slot_num in range(0, total_slots):
 					prepare_transmitting_stations(scenario.sending_stations, slot_num)					# Checking to see if a node is trying to send a packet at a given slot.
 					check_difs_counters(scenario.sending_stations)										# Checking to see if the difs counter for any node is 0 to start the backoff.
 					check_backoff_counters(scenario.sending_stations, scenario.spectrum, scenario.vcs)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
@@ -228,55 +233,57 @@ def main():
 						check_CTS_counter(scenario.spectrum)											# if we are using VCS, check the CTS counter
 					check_data_counters(scenario.spectrum)												# Checking to see if the data counter is done. 
 					check_sifs_counters(scenario.sending_stations, scenario.spectrum)					# Checking to see if the sifs counter for any node is 0 to free the medium.
-					check_ack_counters(scenario.spectrum, slot_num)										# Checking to see if the awk counter is done.
+					check_ack_counters(scenario.spectrum)										# Checking to see if the awk counter is done.
 					
 					end_of_slot(scenario)																# Decreasing all counters in the scenario.
 
 					# DEBUG information
-					try:
-						print 'On slot {}'.format(slot_num)
-						print 'A next time slot: {}'.format(station_a.time_slots[0])
-						print 'A difs counter: {}'.format(station_a.difs_counter)
-						print 'A backoff counter: {}'.format(station_a.backoff)
-						print 'A sifs counter: {}'.format(station_a.sifs_counter)
+					#try:
+					#	print 'On slot {}'.format(slot_num)
+					#	print 'A next time slot: {}'.format(station_a.time_slots[0])
+					#	print 'A difs counter: {}'.format(station_a.difs_counter)
+					#	print 'A backoff counter: {}'.format(station_a.backoff)
+					#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
 
-						print 'C next time slot: {}'.format(station_c.time_slots[0])
-						print 'C difs counter: {}'.format(station_c.difs_counter)
-						print 'C backoff counter: {}'.format(station_c.backoff)
-						print 'C sifs counter: {}'.format(station_c.sifs_counter)
+					#	print 'C next time slot: {}'.format(station_c.time_slots[0])
+					#	print 'C difs counter: {}'.format(station_c.difs_counter)
+					#	print 'C backoff counter: {}'.format(station_c.backoff)
+					#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
 
-						print 'Spectrum status: {}'.format(spectrum.status)
-						print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
-						print 'Spectrum Ack Counter: {}'.format(spectrum.ack_counter)
-						print 'Spectrum RTS counter: {}'.format(spectrum.rts_counter)
-						print 'Spectrum CTS counter: {}\n'.format(spectrum.cts_counter)
-					except IndexError, e:
-						print 'No more data to send. Breaking'
-						break
+					#	print 'Spectrum status: {}'.format(spectrum.status)
+					#	print 'Spectrum Data Counter: {}'.format(spectrum.data_counter)
+					#	print 'Spectrum Ack Counter: {}'.format(spectrum.ack_counter)
+					#	print 'Spectrum RTS counter: {}'.format(spectrum.rts_counter)
+					#	print 'Spectrum CTS counter: {}\n'.format(spectrum.cts_counter)
+					#except IndexError, e:
+					#	print 'No more data to send. Breaking'
+					#	break
 
-				#single_sim_data = {	# using hash table to record all of the information of a single simulation
-				#	'lambda_a': lambda_a,
-				#	'lambda_c': lambda_c,
-				#	'a_collisions': station_a.num_collisions,
-				#	'c_collisions': station_c.num_collisions,
-				#	'a_throughput': station_a.num_data_transmit / simulation_time,
-				#	'c_throughput': station_c.num_data_transmit / simulation_time,
-				#	'a_slots_transmitting': station_a.slots_transmitting,
-				#	'c_slots_transmitting': station_c.slots_transmitting,
-				#	'FI': station_a.slots_transmitting / station_c.slots_transmitting,
-				#	'vcs': vcs,
-				#	'scenario': scenario_choice
-				#}
-				#sim_data.append(single_sim_data)
+				single_sim_data = {	# using hash table to record all of the information of a single simulation
+					'lambda_a': lambda_a,
+					'lambda_c': lambda_c,
+					'a_collisions': station_a.num_collisions,
+					'c_collisions': station_c.num_collisions,
+					'a_throughput': station_a.num_data_transmit / simulation_time,
+					'c_throughput': station_c.num_data_transmit / simulation_time,
+					'a_slots_transmitting': station_a.slots_transmitting,
+					'c_slots_transmitting': station_c.slots_transmitting,
+					'FI': station_a.slots_transmitting / station_c.slots_transmitting,
+					'vcs': vcs,
+					'scenario': scenario_choice
+				}
+				sim_data.append(single_sim_data)
 
-	#for sim in sim_data:
-	#	print sim
+	for sim in sim_data:
+		print sim
 
-	'''
+
 	plt.figure(0)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
-	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
+	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
+	vcs_y_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -284,9 +291,11 @@ def main():
 	#plt.savefig('fig1-a.png')
 
 	plt.figure(1)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
-	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
+	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
+	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))	
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -294,9 +303,11 @@ def main():
 	#plt.savefig('fig1-b.png')
 
 	plt.figure(2)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
-	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
+	vcs_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -304,9 +315,11 @@ def main():
 	#plt.savefig('fig1-c.png')
 
 	plt.figure(3)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
-	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
+	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -314,9 +327,11 @@ def main():
 	#plt.savefig('fig1-d.png')	
 
 	plt.figure(4)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] ]
-	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] and sim['vcs']]
+	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
+	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)	
 	plt.xlim((45, 305))
 	plt.ylabel(r'$N$ (Number of collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -324,9 +339,11 @@ def main():
 	#plt.savefig('fig2-a.png')
 
 	plt.figure(5)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
-	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
+	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
+	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$N$ (Number of collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -334,9 +351,11 @@ def main():
 	#plt.savefig('fig2-b.png')
 
 	plt.figure(6)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
-	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
+	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -344,9 +363,11 @@ def main():
 	#plt.savefig('fig1-d.png')
 
 	plt.figure(7)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
-	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
+	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -354,9 +375,11 @@ def main():
 	#plt.savefig('fig1-d.png')
 
 	plt.figure(8)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
-	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] ]
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
+	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
+	vcs_y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
 	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$FI$ (Fairness Index)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
@@ -364,14 +387,18 @@ def main():
 	#plt.savefig('fig3-a.png')
 
 	plt.figure(9)
-	plt.plot([ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) ], [ sim['FI'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c'])], '-bo', linewidth=2.0, markersize=10)
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
+	vcs_y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
+	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10)
+	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10)
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title('3.b Fairness Index with A sending more than C')
 	#plt.savefig('fig1-d.png')
 	plt.show()
-	'''
+	
 
 if __name__ == '__main__':
 	main()
