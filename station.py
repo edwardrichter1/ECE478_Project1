@@ -56,13 +56,11 @@ class Station:
 		if (len(timeList) > 0 and timeList[-1] > total_slots):
 			del timeList[-1] 												# Last element is too big
 
-		timeList = [5]
 		return timeList 
 
 
 	def set_rand_backoff(self):
 		a = randint(1, self.max_backoff)
-		print 'Random number is {}'.format(a)
 		self.backoff = a
 
 

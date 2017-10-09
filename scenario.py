@@ -1,10 +1,11 @@
 class Scenario:
 	
-	def __init__(self, stations, spectrum, vcs):
+	def __init__(self, stations, spectrum, vcs, scenario_choice):
 		self.sending_stations = [station for station in stations if station.role.lower() == 'sender']
 		self.receiving_stations = [station for station in stations if station.role.lower() == 'receiver']
 		self.spectrum = spectrum
 		self.vcs = vcs								# Boolean value showing if we use virtual carrier sensing or not
+		self.scenario_choice = scenario_choice
 
 
 

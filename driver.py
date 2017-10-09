@@ -119,7 +119,8 @@ def check_ack_counters(spectrum, sending_stations):
 				if (len(spectrum.sending_station[0].time_slots) > 0):
 					spectrum.sending_station[0].time_slots = spectrum.sending_station[0].time_slots[1:]
 				spectrum.status = 'free'
-				spectrum.sending_station[0].status = 'free'
+				t_station.status = 'free'		# Eddie added this
+				#spectrum.sending_station[0].status = 'free'
 				#print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
 				spectrum.sending_station[0].num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
 				spectrum.sending_station = []
@@ -132,7 +133,7 @@ def check_ack_counters(spectrum, sending_stations):
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-				print 'Collision in ack on slot'
+				print 'Collision in ack on slot. Incrementing station {} num_collisions'.format(t_station.name)
 				if (len(spectrum.sending_station) > 0 and spectrum.sending_station[0].status == 'free'):
 					print '||||'
 					print spectrum.sending_station[0].name
@@ -151,15 +152,16 @@ def check_CTS_counter(spectrum, sending_stations):
 		if t_station.cts_counter == 0:
 			if (spectrum.status is 'busy'):
 				t_station.cts_counter = -1
-				spectrum.sending_station[0].sifs_counter = SIFS_duration
+				t_station.sifs_counter = SIFS_duration # EDDIE ADDED THIS
+				#spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'cts'
 			elif (spectrum.status is 'collision'):
-				t_station.cts_counter = -1
 				t_station.action_before_sifs = ''
 				for p_station in spectrum.sending_station:
-					p_station.num_collisions += 1 # every sending station has been apart of a collision, so increment by one
+					p_station.cts_counter = -1 		# setting every station that was sending cts counter back to -1
+					p_station.num_collisions += 1 	# every sending station has been apart of a collision, so increment by one
 					p_station.status = 'free'
 					if (p_station.max_backoff < max_backoff_range):
 						p_station.max_backoff *= 2
@@ -174,7 +176,8 @@ def check_RTS_counter(spectrum, sending_stations):
 		if t_station.rts_counter == 0:
 			if (spectrum.status is 'busy'):
 				t_station.rts_counter = -1
-				spectrum.sending_station[0].sifs_counter = SIFS_duration
+				t_station.sifs_counter = SIFS_duration
+				#spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'rts'
@@ -225,10 +228,6 @@ def end_of_slot(s):
 	if (s.spectrum.status != 'collision'):
 		freeze_data(s)
 
-	# for t_station in s.sending_stations:
-	# 	if t_station.backoff == 0:
-	# 		t_station.backoff = -1
-
 	for t_station in s.sending_stations:
 		if (t_station.wait_time > 0):
 			t_station.wait_time -= 1
@@ -238,22 +237,22 @@ def end_of_slot(s):
 def freeze_data(scenario):
 	for t_station in scenario.sending_stations:
 		# Sending Stations (RTS)
-		print 'Station {}'.format(t_station.name)
+		# print 'Station {}'.format(t_station.name)
 		if (t_station.backoff == 0 and scenario.vcs):
 			for p_station in t_station.collision_domain:
-				print 'Freeze 1'
-				p_station.wait_time = ACK_RTS_CTS_slots + SIFS_duration + ACK_RTS_CTS_slots + SIFS_duration + data_slots + SIFS_duration + ACK_RTS_CTS_slots
-		print 'Backoff {} and scenario {}'.format(t_station.backoff, scenario.vcs)
+				#print 'Freeze 1 {}'.format(p_station.name)
+				p_station.wait_time = ACK_RTS_CTS_slots + SIFS_duration + ACK_RTS_CTS_slots + SIFS_duration + data_slots + SIFS_duration + ACK_RTS_CTS_slots + 1
+		
 		if (t_station.backoff == 0 and (not scenario.vcs)):
 			for p_station in t_station.collision_domain:
-				print 'Freeze 2 {}'.format(p_station.name)
+				#print 'Freeze 2 {}'.format(p_station.name)
 				p_station.wait_time = data_slots + SIFS_duration + ACK_RTS_CTS_slots + 1
 		
 		# Receiving Stations (CTS)
-		if (t_station.sifs_counter == 0 and t_station.action_before_sifs != 'rts' and scenario.vcs):
+		if (t_station.sifs_counter == 0 and t_station.action_before_sifs != 'rts' and scenario.vcs and scenario.scenario_choice == 'b'):
 			for p_station in t_station.station_sending_to.collision_domain:
 				if (p_station != t_station):
-					print 'Freeze 3'
+					#print 'Freeze 3'
 					p_station.wait_time = SIFS_duration + data_slots + SIFS_duration + ACK_RTS_CTS_slots
 
 
@@ -261,9 +260,9 @@ def main():
 
 	sim_data = []
 
-	for scenario_choice in ['b']: 					# TODO: incorporate scenario B and place that in the loop
-		for vcs in [True]:					# TODO: incorporate both VCS on and off and place in loop
-			for lambda_a, lambda_c in [[10, 10]]:	# TODO: incorporate all lambda values
+	for scenario_choice in ['a', 'b']: 					# TODO: incorporate scenario B and place that in the loop
+		for vcs in [False, True]:					# TODO: incorporate both VCS on and off and place in loop
+			for lambda_a, lambda_c in lambda_vals:	# TODO: incorporate all lambda values
 				print 'Starting with scenario {} for vcs {}. Lambda A = {} and Lambda C = {}.'.format(scenario_choice, vcs, lambda_a, lambda_c)
 				# Initializing scenario A
 				if scenario_choice == 'a':
@@ -280,7 +279,7 @@ def main():
 					station_c.set_collision_domain([station_a, station_b, station_d])
 					station_d.set_collision_domain([station_a, station_b, station_c])
 					spectrum = Spectrum()
-					scenario = Scenario([station_a, station_b, station_c, station_d], spectrum, vcs)
+					scenario = Scenario([station_a, station_b, station_c, station_d], spectrum, vcs, scenario_choice)
 				
 				# Initializing scenario B
 				if scenario_choice == 'b':
@@ -294,10 +293,10 @@ def main():
 					station_b.set_collision_domain([station_a, station_c])
 					station_c.set_collision_domain([station_b])
 					spectrum = Spectrum()
-					scenario = Scenario([station_a, station_b, station_c], spectrum, vcs)
+					scenario = Scenario([station_a, station_b, station_c], spectrum, vcs, scenario_choice)
 
 
-				for slot_num in range(0, 3000):
+				for slot_num in range(0, total_slots):
 					prepare_transmitting_stations(scenario.sending_stations, slot_num)					# Checking to see if a node is trying to send a packet at a given slot.
 					check_difs_counters(scenario.sending_stations)										# Checking to see if the difs counter for any node is 0 to start the backoff.
 					check_backoff_counters(scenario.sending_stations, scenario.spectrum, scenario.vcs)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
@@ -311,43 +310,43 @@ def main():
 					end_of_slot(scenario)																# Decreasing all counters in the scenario.
 
 					# DEBUG information
-					try:
-						print 'On slot {}'.format(slot_num)
-						print 'A next time slot: {}'.format(station_a.time_slots[0])
-						print 'A difs counter: {}'.format(station_a.difs_counter)
-						print 'A backoff counter: {}'.format(station_a.backoff)
-						print 'A data counter: {}'.format(station_a.data_counter)
-						print 'A sifs counter: {}'.format(station_a.sifs_counter)
-						print 'A ack counter: {}'.format(station_a.ack_counter)
-						print 'A rts counter: {}'.format(station_a.rts_counter)
-						print 'A cts counter: {}'.format(station_a.cts_counter)
-						print 'A wait times: {}'.format(station_a.wait_time)
+					#try:
+					#	print 'On slot {}'.format(slot_num)
+					#	print 'A next time slot: {}'.format(station_a.time_slots[0])
+					#	print 'A difs counter: {}'.format(station_a.difs_counter)
+					#	print 'A backoff counter: {}'.format(station_a.backoff)
+					#	print 'A data counter: {}'.format(station_a.data_counter)
+					#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
+					#	print 'A ack counter: {}'.format(station_a.ack_counter)
+					#	print 'A rts counter: {}'.format(station_a.rts_counter)
+					#	print 'A cts counter: {}'.format(station_a.cts_counter)
+					#	print 'A wait times: {}'.format(station_a.wait_time)
 
-						print 'C next time slot: {}'.format(station_c.time_slots[0])
-						print 'C difs counter: {}'.format(station_c.difs_counter)
-						print 'C backoff counter: {}'.format(station_c.backoff)
-						print 'C data counter: {}'.format(station_c.data_counter)
-						print 'C sifs counter: {}'.format(station_c.sifs_counter)
-						print 'C ack counter: {}'.format(station_c.ack_counter)
-						print 'C rts counter: {}'.format(station_c.rts_counter)
-						print 'C cts counter: {}'.format(station_c.cts_counter)
-						print 'C wait times: {}'.format(station_c.wait_time)
+					#	print 'C next time slot: {}'.format(station_c.time_slots[0])
+					#	print 'C difs counter: {}'.format(station_c.difs_counter)
+					#	print 'C backoff counter: {}'.format(station_c.backoff)
+					#	print 'C data counter: {}'.format(station_c.data_counter)
+					#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
+					#	print 'C ack counter: {}'.format(station_c.ack_counter)
+					#	print 'C rts counter: {}'.format(station_c.rts_counter)
+					#	print 'C cts counter: {}'.format(station_c.cts_counter)
+					#	print 'C wait times: {}'.format(station_c.wait_time)
 
-						print 'Spectrum status: {}\n'.format(spectrum.status)
-					except IndexError, e:
-						print 'No more data to send. Breaking'
-						break
+					#	print 'Spectrum status: {}\n'.format(spectrum.status)
+					#except IndexError, e:
+					#	print 'No more data to send. Breaking'
+					#	break
 
 				single_sim_data = {	# using hash table to record all of the information of a single simulation
 					'lambda_a': lambda_a,
 					'lambda_c': lambda_c,
 					'a_collisions': station_a.num_collisions,
 					'c_collisions': station_c.num_collisions,
-					'a_throughput': station_a.num_data_transmit / simulation_time,
-					'c_throughput': station_c.num_data_transmit / simulation_time,
+					'a_throughput': station_a.num_data_transmit / float(simulation_time),
+					'c_throughput': station_c.num_data_transmit / float(simulation_time),
 					'a_slots_transmitting': station_a.slots_transmitting,
 					'c_slots_transmitting': station_c.slots_transmitting,
-					'FI': station_a.slots_transmitting / float(station_c.slots_transmitting),
+					#'FI': station_a.slots_transmitting / float(station_c.slots_transmitting),
 					'vcs': vcs,
 					'scenario': scenario_choice
 				}
