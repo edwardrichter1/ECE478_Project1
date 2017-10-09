@@ -46,19 +46,28 @@ def check_difs_counters(stations):
 # put the channel in a busy state.
 def check_backoff_counters(stations, spectrum, vcs):
 	sendingList = []
+	corrupt_data_ack_or_sifs = False
+	station_sending = False
 	for t_station in stations:
 		if t_station.backoff == 0:
 			t_station.backoff = -1
+			station_sending = True
 			sendingList.append(t_station)
-	if (len(sendingList) is 1):
+	for t_station in stations:
+		if (t_station.ack_counter != -1 or t_station.sifs_counter != -1) and station_sending: # EDDIE CHANGED THIS
+			corrupt_data_ack_or_sifs = True
+
+	if (len(sendingList) is 1 and not corrupt_data_ack_or_sifs):
 		spectrum.status = 'busy'
+		print 'SENDING LIST IS 1'
 		if vcs:
 			sendingList[0].rts_counter = ACK_RTS_CTS_slots
 		else:	
 			sendingList[0].data_counter = data_slots	
 		spectrum.sending_station = sendingList
 
-	elif (len(sendingList) > 1):
+	elif (len(sendingList) > 1 or corrupt_data_ack_or_sifs):
+		print 'SENDING LIST IS MORE THAN ONE. corrupt_data_ack_or_sifs: {}'.format(corrupt_data_ack_or_sifs)
 		spectrum.status = 'collision'
 		if vcs:
 			for p_station in sendingList:
@@ -76,15 +85,14 @@ def check_data_counters(spectrum, sending_stations):
 		if (t_station.data_counter == 0):
 			if (spectrum.status is 'busy'):
 				t_station.data_counter = -1
-				spectrum.sending_station[0].sifs_counter = SIFS_duration
+				#spectrum.sending_station[0].sifs_counter = SIFS_duration # EDDIE CHANGED THIS
+				t_station.sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'data'
 			elif (spectrum.status is 'collision'):
 				t_station.data_counter = -1
 				t_station.action_before_sifs = 'data'
-				print 'Sending station:'
-				print spectrum.sending_station
 				t_station.sifs_counter = SIFS_duration
 				#for p_station in spectrum.sending_station:
 				#	p_station.sifs_counter = SIFS_duration
@@ -96,12 +104,13 @@ def check_data_counters(spectrum, sending_stations):
 def check_sifs_counters(stations, spectrum):
 	for t_station in stations:
 		if (t_station.sifs_counter == 0):
+			print 'In check_sifs_counters with station {} action_before_sifs: {} with data_counter {}'.format(t_station.name, t_station.action_before_sifs, t_station.data_counter)
 			t_station.sifs_counter = -1
-			if t_station.action_before_sifs == 'rts':
+			if t_station.action_before_sifs == 'rts' and t_station.data_counter == -1:
 				t_station.cts_counter = ACK_RTS_CTS_slots
-			elif t_station.action_before_sifs == 'cts':
+			elif t_station.action_before_sifs == 'cts' and t_station.data_counter == -1:
 				t_station.data_counter = data_slots
-			elif t_station.action_before_sifs == 'data':
+			elif t_station.action_before_sifs == 'data' and t_station.data_counter == -1:
 				t_station.ack_counter = ACK_RTS_CTS_slots
 
 			if (spectrum.status is 'busy'):
@@ -116,28 +125,28 @@ def check_ack_counters(spectrum, sending_stations):
 		if (t_station.ack_counter == 0):
 			t_station.ack_counter = -1
 			if (spectrum.status is 'busy'):
-				if (len(spectrum.sending_station[0].time_slots) > 0):
-					spectrum.sending_station[0].time_slots = spectrum.sending_station[0].time_slots[1:]
+				#if (len(spectrum.sending_station[0].time_slots) > 0): # EDDIE CHANGED THIS
+					#spectrum.sending_station[0].time_slots = spectrum.sending_station[0].time_slots[1:]
+				if(len(t_station.time_slots) > 0):
+					t_station.time_slots = t_station.time_slots[1:]
 				spectrum.status = 'free'
 				t_station.status = 'free'		# Eddie added this
 				#spectrum.sending_station[0].status = 'free'
-				#print 'Success on slot {} from station {}'.format(slot_num, spectrum.sending_station.name)	
-				spectrum.sending_station[0].num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
+				#spectrum.sending_station[0].num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
+				t_station.num_data_transmit += 12
+				t_station.max_backoff = backoff_range
+				print 'Success on slot. Incrementing Station {} num_data_transmit to {}'.format(t_station.name, t_station.num_data_transmit)
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1	
 				spectrum.status = 'free'
 			elif (spectrum.status is 'collision'):
 				#for p_station in spectrum.sending_station:
 				t_station.num_collisions += 1 # every sending station has been apart of a collision, so increment by one
-				print 'Setting {} to free'.format(t_station.name)
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-				print 'Collision in ack on slot. Incrementing station {} num_collisions'.format(t_station.name)
+				print 'Collision in ack on slot. Incrementing station {} num_collisions to {}'.format(t_station.name, t_station.num_collisions)
 				if (len(spectrum.sending_station) > 0 and spectrum.sending_station[0].status == 'free'):
-					print '||||'
-					print spectrum.sending_station[0].name
-					print '||||'
 					spectrum_collision = True
 
 				
@@ -260,9 +269,9 @@ def main():
 
 	sim_data = []
 
-	for scenario_choice in ['a', 'b']: 					# TODO: incorporate scenario B and place that in the loop
-		for vcs in [False, True]:					# TODO: incorporate both VCS on and off and place in loop
-			for lambda_a, lambda_c in lambda_vals:	# TODO: incorporate all lambda values
+	for scenario_choice in ['a']: 
+		for vcs in [False]:			
+			for lambda_a, lambda_c in [[300, 300]]:
 				print 'Starting with scenario {} for vcs {}. Lambda A = {} and Lambda C = {}.'.format(scenario_choice, vcs, lambda_a, lambda_c)
 				# Initializing scenario A
 				if scenario_choice == 'a':
@@ -296,7 +305,7 @@ def main():
 					scenario = Scenario([station_a, station_b, station_c], spectrum, vcs, scenario_choice)
 
 
-				for slot_num in range(0, total_slots):
+				for slot_num in range(0, 3000):
 					prepare_transmitting_stations(scenario.sending_stations, slot_num)					# Checking to see if a node is trying to send a packet at a given slot.
 					check_difs_counters(scenario.sending_stations)										# Checking to see if the difs counter for any node is 0 to start the backoff.
 					check_backoff_counters(scenario.sending_stations, scenario.spectrum, scenario.vcs)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
@@ -310,33 +319,34 @@ def main():
 					end_of_slot(scenario)																# Decreasing all counters in the scenario.
 
 					# DEBUG information
-					#try:
-					#	print 'On slot {}'.format(slot_num)
-					#	print 'A next time slot: {}'.format(station_a.time_slots[0])
-					#	print 'A difs counter: {}'.format(station_a.difs_counter)
-					#	print 'A backoff counter: {}'.format(station_a.backoff)
-					#	print 'A data counter: {}'.format(station_a.data_counter)
-					#	print 'A sifs counter: {}'.format(station_a.sifs_counter)
-					#	print 'A ack counter: {}'.format(station_a.ack_counter)
-					#	print 'A rts counter: {}'.format(station_a.rts_counter)
-					#	print 'A cts counter: {}'.format(station_a.cts_counter)
-					#	print 'A wait times: {}'.format(station_a.wait_time)
+					
+					try:
+						print 'On slot {}'.format(slot_num)
+						print 'A next time slot: {}'.format(station_a.time_slots[0])
+						print 'A difs counter: {}'.format(station_a.difs_counter)
+						print 'A backoff counter: {}'.format(station_a.backoff)
+						print 'A data counter: {}'.format(station_a.data_counter)
+						print 'A sifs counter: {}'.format(station_a.sifs_counter)
+						print 'A ack counter: {}'.format(station_a.ack_counter)
+						print 'A rts counter: {}'.format(station_a.rts_counter)
+						print 'A cts counter: {}'.format(station_a.cts_counter)
+						print 'A wait times: {}'.format(station_a.wait_time)
 
-					#	print 'C next time slot: {}'.format(station_c.time_slots[0])
-					#	print 'C difs counter: {}'.format(station_c.difs_counter)
-					#	print 'C backoff counter: {}'.format(station_c.backoff)
-					#	print 'C data counter: {}'.format(station_c.data_counter)
-					#	print 'C sifs counter: {}'.format(station_c.sifs_counter)
-					#	print 'C ack counter: {}'.format(station_c.ack_counter)
-					#	print 'C rts counter: {}'.format(station_c.rts_counter)
-					#	print 'C cts counter: {}'.format(station_c.cts_counter)
-					#	print 'C wait times: {}'.format(station_c.wait_time)
+						print 'C next time slot: {}'.format(station_c.time_slots[0])
+						print 'C difs counter: {}'.format(station_c.difs_counter)
+						print 'C backoff counter: {}'.format(station_c.backoff)
+						print 'C data counter: {}'.format(station_c.data_counter)
+						print 'C sifs counter: {}'.format(station_c.sifs_counter)
+						print 'C ack counter: {}'.format(station_c.ack_counter)
+						print 'C rts counter: {}'.format(station_c.rts_counter)
+						print 'C cts counter: {}'.format(station_c.cts_counter)
+						print 'C wait times: {}'.format(station_c.wait_time)
 
-					#	print 'Spectrum status: {}\n'.format(spectrum.status)
-					#except IndexError, e:
-					#	print 'No more data to send. Breaking'
-					#	break
-
+						print 'Spectrum status: {}\n'.format(spectrum.status)
+					except IndexError, e:
+						print 'No more data to send. Breaking'
+						break
+					
 				single_sim_data = {	# using hash table to record all of the information of a single simulation
 					'lambda_a': lambda_a,
 					'lambda_c': lambda_c,
@@ -357,110 +367,142 @@ def main():
 
 	print '\nDONE\n'
 
-''' 	plt.figure(0)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	vcs_y_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+ 	plt.figure(0)
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ] 
+	no_vcs_a_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'1.a Node A: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec)')
-	#plt.savefig('fig1-a.png')
+	plt.savefig('fig1-a.png')
 
 	plt.figure(1)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_a_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))	
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'1.b Node C: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec)')
-	#plt.savefig('fig1-b.png')
+	plt.savefig('fig1-b.png')
 
 	plt.figure(2)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
-	vcs_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_a_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['a_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'1.c Node A: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
-	#plt.savefig('fig1-c.png')
+	plt.savefig('fig1-c.png')
 
 	plt.figure(3)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
-	vcs_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a']
+	no_vcs_a_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['c_throughput'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'1.d Node C: Throughput $T$ (Kbps) vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
-	#plt.savefig('fig1-d.png')	
+	plt.savefig('fig1-d.png')	
 
 	plt.figure(4)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] and sim['vcs']]
-	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')	
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_c'] == sim['lambda_a'] and sim['vcs'] and sim['scenario'] == 'a']
+	no_vcs_a_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')	
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$N$ (Number of Collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'2.a Node A: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec)')
-	#plt.savefig('fig2-a.png')
+	plt.savefig('fig2-a.png')
 
 	plt.figure(5)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
-	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a']
+	no_vcs_a_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')	
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$N$ (Number of collisions)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'2.b Node C: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec)')
-	#plt.savefig('fig2-b.png')
+	plt.savefig('fig2-b.png')
 
 	plt.figure(6)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
-	vcs_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a']
+	no_vcs_a_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['a_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'2.c Node A: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
-	#plt.savefig('fig1-d.png')
+	plt.savefig('fig2-c.png')
 
 	plt.figure(7)
-	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs']]
-	vcs_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
-	plt.plot(x_vals, y_vals, '-bo', linewidth=2.0, markersize=10, label='CSMA')
-	plt.plot(x_vals, vcs_y_vals, '-rs', linewidth=2.0, markersize=10, label='CSMA w. Virtual Sensing')
-	plt.legend()
+	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a']
+	no_vcs_a_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'a' ]
+	vcs_a_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'a' ]
+	no_vcs_b_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and not sim['vcs'] and sim['scenario'] == 'b' ]
+	vcs_b_y_vals = [ sim['c_collisions'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs'] and sim['scenario'] == 'b' ]
+	plt.plot(x_vals, no_vcs_a_y_vals, '-bo', linewidth=2.0, markersize=10, label='Scenario A CSMA')
+	plt.plot(x_vals, vcs_a_y_vals, '-rs', linewidth=2.0, markersize=10, label='Scenario A CSMA w. Virtual Sensing')
+	plt.plot(x_vals, no_vcs_b_y_vals, '-g+', linewidth=2.0, markersize=10, label='Scenario B CSMA')
+	plt.plot(x_vals, vcs_b_y_vals, '-kx', linewidth=2.0, markersize=10, label='Scenario B CSMA w. Virtual Sensing')
+	#plt.legend()
 	plt.xlim((45, 305))
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'2.d Node C: Number of Collisions $N$ vs Rate $\lambda$ (frames/sec) when $\lambda$A = 2$\lambda$C')
-	#plt.savefig('fig1-d.png')
-
+	plt.savefig('fig2-d.png')
+	'''
 	plt.figure(8)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and sim['vcs']]
 	y_vals = [ sim['FI'] for sim in sim_data if sim['lambda_a'] == sim['lambda_c'] and not sim['vcs']]
@@ -472,7 +514,7 @@ def main():
 	plt.ylabel(r'$FI$ (Fairness Index)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title('3.a Fairness Index')
-	#plt.savefig('fig3-a.png')
+	plt.savefig('fig3-a.png')
 
 	plt.figure(9)
 	x_vals = [ sim['lambda_c'] for sim in sim_data if sim['lambda_a'] == ( 2 * sim['lambda_c']) and sim['vcs']]
@@ -485,8 +527,8 @@ def main():
 	plt.ylabel(r'$T$ (Kbps)')
 	plt.xlabel(r'$\lambda$ (frames/sec)')
 	plt.title(r'3.b Fairness Index when $\lambda$A = 2$\lambda$C')
-	# plt.savefig('fig1-d.png')
-	plt.show() '''
-	
+	plt.savefig('fig1-d.png')
+	#plt.show()
+	'''
 if __name__ == '__main__':
 	main()
