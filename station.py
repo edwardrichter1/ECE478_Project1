@@ -62,7 +62,7 @@ class Station:
 
 	def set_rand_backoff(self):
 		a = randint(1, self.max_backoff)
-		print a
+		print 'Random number is {}'.format(a)
 		self.backoff = a
 
 

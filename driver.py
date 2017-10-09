@@ -105,12 +105,13 @@ def check_sifs_counters(stations, spectrum):
 				t_station.ack_counter = ACK_RTS_CTS_slots
 
 			if (spectrum.status is 'busy'):
-				spectrum.set_sending_receiving_station([t_station], t_station.station_sending_to)
+				spectrum.set_sending_receiving_station(t_station, t_station.station_sending_to)
 
 
 # This function checks if the ack counter in the spectrum is set to -1. If it is then it clears the 
 # sending station, resets the counter to -1, and sets the status to free. 
 def check_ack_counters(spectrum, sending_stations):
+	spectrum_collision = False
 	for t_station in sending_stations:
 		if (t_station.ack_counter == 0):
 			t_station.ack_counter = -1
@@ -126,8 +127,8 @@ def check_ack_counters(spectrum, sending_stations):
 				spectrum.status = 'free'
 			elif (spectrum.status is 'collision'):
 				#for p_station in spectrum.sending_station:
-
 				t_station.num_collisions += 1 # every sending station has been apart of a collision, so increment by one
+				print 'Setting {} to free'.format(t_station.name)
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
@@ -136,10 +137,13 @@ def check_ack_counters(spectrum, sending_stations):
 					print '||||'
 					print spectrum.sending_station[0].name
 					print '||||'
-					spectrum.status = 'free'
-				spectrum.sending_station = []
-				spectrum.receiving_station = -1	
+					spectrum_collision = True
+
 				
+	if spectrum_collision:
+		spectrum.status = 'free'
+		spectrum.sending_station = []
+		spectrum.receiving_station = -1	
 
 
 def check_CTS_counter(spectrum, sending_stations):
@@ -147,7 +151,7 @@ def check_CTS_counter(spectrum, sending_stations):
 		if t_station.cts_counter == 0:
 			if (spectrum.status is 'busy'):
 				t_station.cts_counter = -1
-				spectrum.sending_station.sifs_counter = SIFS_duration
+				spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'cts'
@@ -170,7 +174,7 @@ def check_RTS_counter(spectrum, sending_stations):
 		if t_station.rts_counter == 0:
 			if (spectrum.status is 'busy'):
 				t_station.rts_counter = -1
-				spectrum.sending_station.sifs_counter = SIFS_duration
+				spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'rts'
@@ -258,7 +262,7 @@ def main():
 	sim_data = []
 
 	for scenario_choice in ['b']: 					# TODO: incorporate scenario B and place that in the loop
-		for vcs in [False]:					# TODO: incorporate both VCS on and off and place in loop
+		for vcs in [True]:					# TODO: incorporate both VCS on and off and place in loop
 			for lambda_a, lambda_c in [[10, 10]]:	# TODO: incorporate all lambda values
 				print 'Starting with scenario {} for vcs {}. Lambda A = {} and Lambda C = {}.'.format(scenario_choice, vcs, lambda_a, lambda_c)
 				# Initializing scenario A
@@ -293,7 +297,7 @@ def main():
 					scenario = Scenario([station_a, station_b, station_c], spectrum, vcs)
 
 
-				for slot_num in range(0, 300):
+				for slot_num in range(0, 3000):
 					prepare_transmitting_stations(scenario.sending_stations, slot_num)					# Checking to see if a node is trying to send a packet at a given slot.
 					check_difs_counters(scenario.sending_stations)										# Checking to see if the difs counter for any node is 0 to start the backoff.
 					check_backoff_counters(scenario.sending_stations, scenario.spectrum, scenario.vcs)	# Checking to see if the backoff counter for any node is 0 so we can send a packet.
