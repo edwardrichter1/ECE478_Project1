@@ -16,9 +16,15 @@ class Station:
 		self.backoff = -1 							# If not in backoff then will be -1
 		self.difs_counter = -1 						# If not in DIFS will be -1
 		self.sifs_counter = -1 						# If not in SIFS will be -1
+		self.data_counter = -1						# If not in Data will be -1
+		self.ack_counter = -1						# If not in Ack will be -1
+		self.rts_counter = -1						# If not in RTS will be -1
+		self.cts_counter = -1						# If not in CTS will be -1
+		self.action_before_sifs = ''				# So we know what state we are in before SIFS (could be data, RTS, or CTS)
 		self.num_data_transmit = 0					# amount of data in Kb successfully transmitted
 		self.num_collisions = 0						# number of collisions
 		self.slots_transmitting = 0					# number of slots the station is using the medium
+		self.wait_time = -1
 
 	def __str__(self):
 		ret_str = 'Station {}:\n\tRole: {}\n\tLambda: {}\n\tBackoff: {}\n\n'.format(self.name, self.role, self.lambda_val, self.backoff)
@@ -50,11 +56,14 @@ class Station:
 		if (len(timeList) > 0 and timeList[-1] > total_slots):
 			del timeList[-1] 												# Last element is too big
 
+		timeList = [5]
 		return timeList 
 
 
 	def set_rand_backoff(self):
-		self.backoff = randint(0, self.max_backoff)
+		a = randint(1, self.max_backoff)
+		print a
+		self.backoff = a
 
 
 def main():
