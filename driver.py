@@ -54,7 +54,7 @@ def check_backoff_counters(stations, spectrum, vcs):
 			station_sending = True
 			sendingList.append(t_station)
 	for t_station in stations:
-		if (t_station.ack_counter != -1 or t_station.sifs_counter != -1) and station_sending: # EDDIE CHANGED THIS
+		if (t_station.ack_counter != -1 or t_station.sifs_counter != -1) and station_sending and not vcs: # EDDIE CHANGED THIS
 			corrupt_data_ack_or_sifs = True
 
 	if (len(sendingList) is 1 and not corrupt_data_ack_or_sifs):
@@ -145,7 +145,7 @@ def check_ack_counters(spectrum, sending_stations):
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
 					t_station.max_backoff *= 2
-				print 'Collision in ack on slot. Incrementing station {} num_collisions to {}'.format(t_station.name, t_station.num_collisions)
+				print 'Collision in ACK. Incrementing station {} num_collisions to {}'.format(t_station.name, t_station.num_collisions)
 				if (len(spectrum.sending_station) > 0 and spectrum.sending_station[0].status == 'free'):
 					spectrum_collision = True
 
@@ -174,7 +174,7 @@ def check_CTS_counter(spectrum, sending_stations):
 					p_station.status = 'free'
 					if (p_station.max_backoff < max_backoff_range):
 						p_station.max_backoff *= 2
-				print 'Collision in CTS'
+					print 'Collision in CTS. Incrementing station {} num_collisions to {}'.format(p_station.name, p_station.num_collisions)
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1	
 				spectrum.status = 'free'
@@ -193,8 +193,9 @@ def check_RTS_counter(spectrum, sending_stations):
 			elif (spectrum.status is 'collision'):
 				t_station.rts_counter = -1
 				t_station.action_before_sifs = 'rts'
-				for p_station in spectrum.sending_station:
-					p_station.sifs_counter = SIFS_duration
+				t_station.sifs_counter = SIFS_duration
+				#for p_station in spectrum.sending_station:
+				#	p_station.sifs_counter = SIFS_duration
 
 
 # This function will decrement all of the counters occuring in the simulation. This will include
@@ -229,8 +230,12 @@ def end_of_slot(s):
 
 	sendingList = []
 	for t_station in s.sending_stations:
-		if t_station.backoff == 0 or t_station.data_counter > 0:
+		if t_station.backoff == 0 or t_station.data_counter >= 0 or t_station.rts_counter >= 0 or t_station.cts_counter >= 0 or t_station.ack_counter >= 0:
 			sendingList.append(t_station)
+			if t_station not in s.spectrum.sending_station:
+				s.spectrum.sending_station.append(t_station)
+
+
 	if (len(sendingList) > 1):
 		s.spectrum.status = 'collision'
 
@@ -258,7 +263,7 @@ def freeze_data(scenario):
 				p_station.wait_time = data_slots + SIFS_duration + ACK_RTS_CTS_slots + 1
 		
 		# Receiving Stations (CTS)
-		if (t_station.sifs_counter == 0 and t_station.action_before_sifs != 'rts' and scenario.vcs and scenario.scenario_choice == 'b'):
+		if (t_station.sifs_counter == 0 and t_station.action_before_sifs == 'cts' and scenario.vcs and scenario.scenario_choice == 'b'):
 			for p_station in t_station.station_sending_to.collision_domain:
 				if (p_station != t_station):
 					#print 'Freeze 3'
@@ -269,8 +274,8 @@ def main():
 
 	sim_data = []
 
-	for scenario_choice in ['a']: 
-		for vcs in [False]:			
+	for scenario_choice in ['b']: 
+		for vcs in [True]:			
 			for lambda_a, lambda_c in [[300, 300]]:
 				print 'Starting with scenario {} for vcs {}. Lambda A = {} and Lambda C = {}.'.format(scenario_choice, vcs, lambda_a, lambda_c)
 				# Initializing scenario A
