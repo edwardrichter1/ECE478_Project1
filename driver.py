@@ -38,7 +38,6 @@ def check_difs_counters(stations):
 		if t_station.difs_counter == 0:
 			t_station.difs_counter = -1
 			t_station.set_rand_backoff()
-			# print 'Station {} difs counter is up, setting backoff of {}'.format(t_station.name, t_station.backoff)
 
 
 # This function is similar to "check_difs_counters", but instead it checks to see if the backoff counter
@@ -59,7 +58,6 @@ def check_backoff_counters(stations, spectrum, vcs):
 
 	if (len(sendingList) is 1 and not corrupt_data_ack_or_sifs):
 		spectrum.status = 'busy'
-		# print 'SENDING LIST IS 1'
 		if vcs:
 			sendingList[0].rts_counter = ACK_RTS_CTS_slots
 		else:	
@@ -67,7 +65,6 @@ def check_backoff_counters(stations, spectrum, vcs):
 		spectrum.sending_station = sendingList
 
 	elif (len(sendingList) > 1 or corrupt_data_ack_or_sifs):
-		# print 'SENDING LIST IS MORE THAN ONE. corrupt_data_ack_or_sifs: {}'.format(corrupt_data_ack_or_sifs)
 		spectrum.status = 'collision'
 		if vcs:
 			for p_station in sendingList:
@@ -85,7 +82,6 @@ def check_data_counters(spectrum, sending_stations):
 		if (t_station.data_counter == 0):
 			if (spectrum.status is 'busy'):
 				t_station.data_counter = -1
-				#spectrum.sending_station[0].sifs_counter = SIFS_duration # EDDIE CHANGED THIS
 				t_station.sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
@@ -94,8 +90,6 @@ def check_data_counters(spectrum, sending_stations):
 				t_station.data_counter = -1
 				t_station.action_before_sifs = 'data'
 				t_station.sifs_counter = SIFS_duration
-				#for p_station in spectrum.sending_station:
-				#	p_station.sifs_counter = SIFS_duration
 
 
 # This function will check the sifs counter of all sending stations. It checks them to see if their
@@ -104,7 +98,6 @@ def check_data_counters(spectrum, sending_stations):
 def check_sifs_counters(stations, spectrum):
 	for t_station in stations:
 		if (t_station.sifs_counter == 0):
-			# print 'In check_sifs_counters with station {} action_before_sifs: {} with data_counter {}'.format(t_station.name, t_station.action_before_sifs, t_station.data_counter)
 			t_station.sifs_counter = -1
 			if t_station.action_before_sifs == 'rts' and t_station.data_counter == -1:
 				t_station.cts_counter = ACK_RTS_CTS_slots
@@ -125,14 +118,10 @@ def check_ack_counters(spectrum, sending_stations):
 		if (t_station.ack_counter == 0):
 			t_station.ack_counter = -1
 			if (spectrum.status is 'busy'):
-				#if (len(spectrum.sending_station[0].time_slots) > 0): # EDDIE CHANGED THIS
-					#spectrum.sending_station[0].time_slots = spectrum.sending_station[0].time_slots[1:]
 				if(len(t_station.time_slots) > 0):
 					t_station.time_slots = t_station.time_slots[1:]
 				spectrum.status = 'free'
-				t_station.status = 'free'		# Eddie added this
-				#spectrum.sending_station[0].status = 'free'
-				#spectrum.sending_station[0].num_data_transmit += 12  # All packets are 1,500 B which is 12 Kb
+				t_station.status = 'free'		# Eddie made this work
 				t_station.num_data_transmit += 12
 				t_station.max_backoff = backoff_range
 				# print 'Success on slot. Incrementing Station {} num_data_transmit to {}'.format(t_station.name, t_station.num_data_transmit)
@@ -140,7 +129,6 @@ def check_ack_counters(spectrum, sending_stations):
 				spectrum.receiving_station = -1	
 				spectrum.status = 'free'
 			elif (spectrum.status is 'collision'):
-				#for p_station in spectrum.sending_station:
 				t_station.num_collisions += 1 # every sending station has been apart of a collision, so increment by one
 				t_station.status = 'free'
 				if (t_station.max_backoff < max_backoff_range):
@@ -148,7 +136,6 @@ def check_ack_counters(spectrum, sending_stations):
 				# print 'Collision in ACK. Incrementing station {} num_collisions to {}'.format(t_station.name, t_station.num_collisions)
 				if (len(spectrum.sending_station) > 0 and spectrum.sending_station[0].status == 'free'):
 					spectrum_collision = True
-
 				
 	if spectrum_collision:
 		spectrum.status = 'free'
@@ -162,13 +149,11 @@ def check_CTS_counter(spectrum, sending_stations):
 			if (spectrum.status is 'busy'):
 				t_station.cts_counter = -1
 				t_station.sifs_counter = SIFS_duration # EDDIE ADDED THIS
-				#spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'cts'
 			elif (spectrum.status is 'collision'):
 				t_station.action_before_sifs = ''
-				#for p_station in spectrum.sending_station:
 				t_station.cts_counter = -1 		# setting every station that was sending cts counter back to -1
 				t_station.num_collisions += 1 	# every sending station has been apart of a collision, so increment by one
 				t_station.status = 'free'
@@ -178,8 +163,7 @@ def check_CTS_counter(spectrum, sending_stations):
 				spectrum.sending_station.remove(t_station)
 				spectrum.receiving_station = -1	
 				if (len(spectrum.sending_station) == 0):
-					spectrum.status = 'free'
-					
+					spectrum.status = 'free'					
 
 
 def check_RTS_counter(spectrum, sending_stations):
@@ -188,7 +172,6 @@ def check_RTS_counter(spectrum, sending_stations):
 			if (spectrum.status is 'busy'):
 				t_station.rts_counter = -1
 				t_station.sifs_counter = SIFS_duration
-				#spectrum.sending_station[0].sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'rts'
@@ -196,8 +179,6 @@ def check_RTS_counter(spectrum, sending_stations):
 				t_station.rts_counter = -1
 				t_station.action_before_sifs = 'rts'
 				t_station.sifs_counter = SIFS_duration
-				#for p_station in spectrum.sending_station:
-				#	p_station.sifs_counter = SIFS_duration
 
 
 # This function will decrement all of the counters occuring in the simulation. This will include
