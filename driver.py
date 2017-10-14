@@ -53,7 +53,7 @@ def check_backoff_counters(stations, spectrum, vcs):
 			station_sending = True
 			sendingList.append(t_station)
 	for t_station in stations:
-		if (t_station.ack_counter != -1 or t_station.sifs_counter != -1) and station_sending and not vcs: # EDDIE CHANGED THIS
+		if (t_station.ack_counter != -1 or t_station.sifs_counter != -1) and station_sending and not vcs:
 			corrupt_data_ack_or_sifs = True
 
 	if (len(sendingList) is 1 and not corrupt_data_ack_or_sifs):
@@ -121,7 +121,7 @@ def check_ack_counters(spectrum, sending_stations):
 				if(len(t_station.time_slots) > 0):
 					t_station.time_slots = t_station.time_slots[1:]
 				spectrum.status = 'free'
-				t_station.status = 'free'		# Eddie made this work
+				t_station.status = 'free'
 				t_station.num_data_transmit += 12
 				t_station.max_backoff = backoff_range
 				# print 'Success on slot. Incrementing Station {} num_data_transmit to {}'.format(t_station.name, t_station.num_data_transmit)
@@ -148,7 +148,7 @@ def check_CTS_counter(spectrum, sending_stations):
 		if t_station.cts_counter == 0:
 			if (spectrum.status is 'busy'):
 				t_station.cts_counter = -1
-				t_station.sifs_counter = SIFS_duration # EDDIE ADDED THIS
+				t_station.sifs_counter = SIFS_duration
 				spectrum.sending_station = []
 				spectrum.receiving_station = -1
 				t_station.action_before_sifs = 'cts'
@@ -257,7 +257,7 @@ def freeze_data(scenario):
 def main():
 
 	
-	for run_number in range(0, 10):
+	for run_number in range(0, 1):
 		print 'Run number {}'.format(run_number)
 		sim_data = []
 		for scenario_choice in ['a', 'b']: 
