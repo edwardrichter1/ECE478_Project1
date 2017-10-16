@@ -1,6 +1,5 @@
 from scenario import Scenario
 from station import Station
-from packet import Packet
 from spectrum import Spectrum
 import matplotlib.pyplot as plt 
 
